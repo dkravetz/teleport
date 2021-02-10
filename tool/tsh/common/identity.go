@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
+	auth "github.com/gravitational/teleport/lib/auth/server"
 	"github.com/gravitational/teleport/lib/client"
 
 	"github.com/gravitational/trace"
