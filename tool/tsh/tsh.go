@@ -253,7 +253,7 @@ const (
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 
-	clusterHelp = "Specify the cluster to connect"
+	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 )
 
@@ -587,12 +587,6 @@ func exportFile(path string, format string) error {
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf) error {
-	var (
-		err error
-		tc  *client.TeleportClient
-		key *client.Key
-	)
-
 	if cf.IdentityFileIn != "" {
 		return trace.BadParameter("-i flag cannot be used here")
 	}
@@ -613,7 +607,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
-	tc, err = makeClient(cf, true)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -660,7 +654,7 @@ func onLogin(cf *CLIConf) error {
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
-			if err := executeAccessRequest(cf); err != nil {
+			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
@@ -679,7 +673,7 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retreived cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
-	key, err = tc.Login(cf.Context)
+	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -718,7 +712,9 @@ func onLogin(cf *CLIConf) error {
 		return nil
 	}
 
-	tc.ActivateKey(cf.Context, key)
+	if err := tc.ActivateKey(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
@@ -737,8 +733,8 @@ func onLogin(cf *CLIConf) error {
 		var prompt string
 		roleNames, err := key.CertRoles()
 		if err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		// load all roles from root cluster and collect relevant options.
 		// the normal one-off TeleportClient methods don't re-use the auth server
@@ -758,16 +754,17 @@ func onLogin(cf *CLIConf) error {
 			return nil
 		})
 		if err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		if reason && cf.RequestReason == "" {
-			tc.Logout()
-			msg := "--requst-reason must be specified"
+			msg := "--request-reason must be specified"
 			if prompt != "" {
 				msg = msg + ", prompt=" + prompt
 			}
-			return trace.BadParameter(msg)
+			err := trace.BadParameter(msg)
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 		if auto {
 			cf.DesiredRoles = "*"
@@ -776,9 +773,9 @@ func onLogin(cf *CLIConf) error {
 
 	if cf.DesiredRoles != "" {
 		fmt.Println("") // visually separate access request output
-		if err := executeAccessRequest(cf); err != nil {
-			tc.Logout()
-			return trace.Wrap(err)
+		if err := executeAccessRequest(cf, tc); err != nil {
+			logoutErr := tc.Logout()
+			return trace.NewAggregate(err, logoutErr)
 		}
 	}
 
@@ -1020,15 +1017,11 @@ func onListNodes(cf *CLIConf) error {
 	return nil
 }
 
-func executeAccessRequest(cf *CLIConf) error {
+func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.DesiredRoles == "" {
 		return trace.BadParameter("one or more roles must be specified")
 	}
 	roles := strings.Split(cf.DesiredRoles, ",")
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
@@ -1607,6 +1600,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
 	}
+	profileSiteName := c.SiteName
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -1687,6 +1681,14 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Load SSH key for the cluster indicated in the profile.
+	// Handle gracefully if the profile is empty or if the key cannot be found.
+	if profileSiteName != "" {
+		if err := tc.LoadKeyForCluster(profileSiteName); err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// If identity file was provided, we skip loading the local profile info
 	// (above). This profile info provides the proxy-advertised listening
 	// addresses.
@@ -1698,6 +1700,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return tc, nil
 }
 
@@ -1926,7 +1929,7 @@ Loop:
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
-	profile, _, err := client.Status("", cf.Proxy)
+	profile, err := client.StatusCurrent("", cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
