@@ -2673,8 +2673,5 @@ func verbsForResourceWithOrigin(stored, candidate types.ResourceWithOrigin) []st
 	if stored.Origin() == types.OriginConfigFile {
 		verbs = append(verbs, types.VerbCreate)
 	}
-	if candidate.Origin() == types.OriginDefaults {
-		verbs = append(verbs, types.VerbDelete)
-	}
 	return verbs
 }

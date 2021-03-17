@@ -424,9 +424,9 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 		return trace.AlreadyExists("non-default cluster auth preference already exists")
 	}
 
-	managedByStatic := storedAuthPref.Origin() == types.OriginConfigFile
-	if !rc.confirm && managedByStatic {
-		return trace.Errorf(managedByStaticMsg)
+	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
+	if !rc.confirm && managedByStaticConfig {
+		return trace.Errorf(managedByStaticConfigMsg)
 	}
 
 	if err := client.SetAuthPreference(newAuthPref); err != nil {
@@ -775,6 +775,6 @@ func UpsertVerb(exists bool, force bool) string {
 	}
 }
 
-const managedByStaticMsg = `This resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+const managedByStaticConfigMsg = `This resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
 If you would still like to proceed, re-run the command with both --force and --confirm flags.`
