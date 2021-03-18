@@ -1774,6 +1774,31 @@ func (c *Client) DeleteNamespace(name string) error {
 	return trace.Wrap(err)
 }
 
+// GetRole returns role by name
+func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
+	role, err := c.APIClient.GetRole(ctx, name)
+	if err == nil {
+		return role, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 7.0
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
 	roles, err := c.APIClient.GetRoles(ctx)
@@ -1827,32 +1852,6 @@ func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 	return trace.Wrap(err)
 }
 
-// GetRole returns role by name
-func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing name")
-	}
-
-	role, err := c.APIClient.GetRole(ctx, name)
-	if err == nil {
-		return role, nil
-	} else if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 7.0
-	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err = services.UnmarshalRole(out.Bytes(), services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return role, nil
-}
-
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	if err := c.APIClient.DeleteRole(ctx, name); err == nil {
@@ -1863,6 +1862,9 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 
 	// fallback to http if grpc is not implemented
 	// DELETE IN 7.0
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }

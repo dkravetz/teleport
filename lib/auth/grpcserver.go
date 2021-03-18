@@ -328,7 +328,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	return certs, err
 }
 
-func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*services.UserV2, error) {
+func (g *GRPCServer) GetUser(ctx context.Context, req *types.GetResourceWithSecretsRequest) (*services.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -345,7 +345,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*s
 	return v2, nil
 }
 
-func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
+func (g *GRPCServer) GetUsers(req *types.GetResourcesWithSecretsRequest, stream proto.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
@@ -365,6 +365,62 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 		}
 	}
 	return nil
+}
+
+// CreateUser inserts a new user entry in a backend.
+func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user created", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// UpdateUser updates an existing user in a backend.
+func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := services.ValidateUser(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UpdateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user updated", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteUser deletes an existng user in a backend by username.
+func (g *GRPCServer) DeleteUser(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteUser(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user deleted", req.Name)
+
+	return &empty.Empty{}, nil
 }
 
 func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *services.AccessRequestFilter) (*proto.AccessRequests, error) {
@@ -579,62 +635,6 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 		return nil, trail.ToGRPC(err)
 	}
 	return &rsp, nil
-}
-
-// CreateUser inserts a new user entry in a backend.
-func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := services.ValidateUser(req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := auth.CreateUser(ctx, req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	log.Infof("%q user created", req.GetName())
-
-	return &empty.Empty{}, nil
-}
-
-// UpdateUser updates an existing user in a backend.
-func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := services.ValidateUser(req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := auth.UpdateUser(ctx, req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	log.Infof("%q user updated", req.GetName())
-
-	return &empty.Empty{}, nil
-}
-
-// DeleteUser deletes an existng user in a backend by username.
-func (g *GRPCServer) DeleteUser(ctx context.Context, req *proto.DeleteUserRequest) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := auth.DeleteUser(ctx, req.GetName()); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	log.Infof("%q user deleted", req.GetName())
-
-	return &empty.Empty{}, nil
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -1249,7 +1249,7 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 }
 
 // GetRole retrieves a role by name.
-func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV3, error) {
+func (g *GRPCServer) GetRole(ctx context.Context, req *types.GetResourceRequest) (*types.RoleV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1266,27 +1266,26 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 }
 
 // GetRoles retrieves all roles.
-func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
-	auth, err := g.authenticate(ctx)
+func (g *GRPCServer) GetRoles(_ *empty.Empty, stream proto.AuthService_GetRolesServer) error {
+	auth, err := g.authenticate(stream.Context())
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return trail.ToGRPC(err)
 	}
-	roles, err := auth.GetRoles(ctx)
+	roles, err := auth.GetRoles(stream.Context())
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return trail.ToGRPC(err)
 	}
-	var rolesV3 []*types.RoleV3
 	for _, r := range roles {
-		role, ok := r.(*types.RoleV3)
+		role, ok := r.(*services.RoleV3)
 		if !ok {
-
-			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", r))
+			log.Warnf("expected type services.RoleV3, got %T for role %q", r, r.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected role type"))
 		}
-		rolesV3 = append(rolesV3, role)
+		if err := stream.Send(role); err != nil {
+			return trail.ToGRPC(err)
+		}
 	}
-	return &proto.GetRolesResponse{
-		Roles: rolesV3,
-	}, nil
+	return nil
 }
 
 // UpsertRole upserts a role.
@@ -1309,7 +1308,7 @@ func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV3) (*empty
 }
 
 // DeleteRole deletes a role by name.
-func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleRequest) (*empty.Empty, error) {
+func (g *GRPCServer) DeleteRole(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1318,7 +1317,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 		return nil, trail.ToGRPC(err)
 	}
 
-	g.Debugf("%q role deleted", req.GetName())
+	g.Debugf("%q role deleted", req.Name)
 
 	return &empty.Empty{}, nil
 }
