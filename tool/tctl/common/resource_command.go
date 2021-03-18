@@ -432,7 +432,7 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 	if err := client.SetAuthPreference(newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("cluster auth preference has been %s\n", UpsertVerb(exists, rc.force))
+	fmt.Printf("cluster auth preference has been updated\n")
 	return nil
 }
 
