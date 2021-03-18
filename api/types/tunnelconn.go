@@ -163,6 +163,14 @@ func (r *TunnelConnectionV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if r.Expiry().IsZero() {
+		from := r.GetLastHeartbeat()
+		if from.IsZero() {
+			from = time.Now()
+		}
+		r.SetExpiry(from.UTC().Add(defaults.ServerAnnounceTTL))
+	}
+
 	return nil
 }
 
