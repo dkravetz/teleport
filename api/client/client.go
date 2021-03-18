@@ -309,7 +309,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	user, err := c.grpc.GetUser(context.TODO(), &proto.GetUserRequest{
+	user, err := c.grpc.GetUser(context.TODO(), &types.GetResourceWithSecretsRequest{
 		Name:        name,
 		WithSecrets: withSecrets,
 	})
@@ -322,19 +322,15 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
-	stream, err := c.grpc.GetUsers(context.TODO(), &proto.GetUsersRequest{
+	stream, err := c.grpc.GetUsers(context.TODO(), &types.GetResourcesWithSecretsRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 	var users []types.User
-	for {
-		user, err := stream.Recv()
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return nil, trail.FromGRPC(err)
 		}
 		users = append(users, user)
@@ -344,7 +340,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
-	req := &proto.DeleteUserRequest{Name: user}
+	req := &types.DeleteResourceRequest{Name: user}
 	_, err := c.grpc.DeleteUser(ctx, req)
 	return trail.FromGRPC(err)
 }
@@ -766,7 +762,7 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
-	resp, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name})
+	resp, err := c.grpc.GetRole(ctx, &types.GetResourceRequest{Name: name})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -775,12 +771,16 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
-	resp, err := c.grpc.GetRoles(ctx, &empty.Empty{})
+	stream, err := c.grpc.GetRoles(ctx, &empty.Empty{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	roles := make([]types.Role, 0, len(resp.GetRoles()))
-	for _, role := range resp.GetRoles() {
+
+	var roles []types.Role
+	for role, err := stream.Recv(); err != io.EOF; role, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -801,7 +801,7 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing name")
 	}
-	_, err := c.grpc.DeleteRole(ctx, &proto.DeleteRoleRequest{Name: name})
+	_, err := c.grpc.DeleteRole(ctx, &types.DeleteResourceRequest{Name: name})
 	return trail.FromGRPC(err)
 }
 

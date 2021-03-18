@@ -187,20 +187,6 @@ message RouteToApp {
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
-// GetUserRequest specifies parameters for the GetUser method.
-message GetUserRequest {
-    // Name is the name of the desired user.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-    // WithSecrets specifies whether to load associated secrets.
-    bool WithSecrets = 2 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
-}
-
-// GetUsersRequest specifies parameters for the GetUsers method.
-message GetUsersRequest {
-    // WithSecrets specifies whether to load associated secrets.
-    bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets" ];
-}
-
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
     repeated types.AccessRequestV3 AccessRequests = 1 [ (gogoproto.jsontag) = "access_requests" ];
@@ -295,12 +281,6 @@ message Features {
     bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
     // Cloud enables some cloud-related features
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
-}
-
-// DeleteUserRequest is the input value for the DeleteUser method.
-message DeleteUserRequest {
-    // Name is the user name to delete.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
 // Semaphores is a sequence of Semaphore resources.
@@ -560,24 +540,6 @@ message DatabaseCertResponse {
     bytes Cert = 1 [ (gogoproto.jsontag) = "cert" ];
     // CACerts is a list of certificate authorities.
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
-}
-
-// GetRoleRequest is a request to query a role.
-message GetRoleRequest {
-    // Name is the name of the role to get.
-    string Name = 1;
-}
-
-// GetRolesResponse is a response to querying for all roles.
-message GetRolesResponse {
-    // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1;
-}
-
-// DeleteRoleRequest is a request to delete a role.
-message DeleteRoleRequest {
-    // Name is the role name to delete.
-    string Name = 1;
 }
 
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
@@ -849,15 +811,15 @@ service AuthService {
         returns (types.ResetPasswordTokenV3);
 
     // GetUser gets a user resource by name.
-    rpc GetUser(GetUserRequest) returns (types.UserV2);
+    rpc GetUser(types.GetResourceWithSecretsRequest) returns (types.UserV2);
     // GetUsers gets all current user resources.
-    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
+    rpc GetUsers(types.GetResourcesWithSecretsRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
     rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
     rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
     // DeleteUser deletes an existing user in a backend by username.
-    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+    rpc DeleteUser(types.DeleteResourceRequest) returns (google.protobuf.Empty);
 
     // AcquireSemaphore acquires lease with requested resources from semaphore.
     rpc AcquireSemaphore(types.AcquireSemaphoreRequest) returns (types.SemaphoreLease);
@@ -946,13 +908,13 @@ service AuthService {
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
     // GetRole retrieves a role described by the given request.
-    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    rpc GetRole(types.GetResourceRequest) returns (types.RoleV3);
     // GetRole retrieves all roles.
-    rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+    rpc GetRoles(google.protobuf.Empty) returns (stream types.RoleV3);
     // UpsertRole upserts a role in a backend.
     rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
     // DeleteRole deletes an existing role in a backend described by the given request.
-    rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
+    rpc DeleteRole(types.DeleteResourceRequest) returns (google.protobuf.Empty);
 
     // AddMFADevice adds an MFA device for the user calling this RPC.
     //
