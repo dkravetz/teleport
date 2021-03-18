@@ -284,7 +284,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
 
-	err = setAuthPreference(asrv, cfg.AuthPreference)
+	err = initSetAuthPreference(asrv, cfg.AuthPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -482,7 +482,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	return asrv, nil
 }
 
-func setAuthPreference(asrv *Server, newAuthPref services.AuthPreference) error {
+func initSetAuthPreference(asrv *Server, newAuthPref services.AuthPreference) error {
 	storedAuthPref, err := asrv.GetAuthPreference()
 	if err != nil {
 		if !trace.IsNotFound(err) {

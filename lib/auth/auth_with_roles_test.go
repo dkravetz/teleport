@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +40,7 @@ func TestSetAuthPreference(t *testing.T) {
 	require.NoError(t, err)
 	storedAuthPref, err := testAuth.AuthServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, types.DefaultAuthPreference()))
+	require.Empty(t, resourceDiff(storedAuthPref, types.DefaultAuthPreference()))
 
 	// Grant VerbRead and VerbUpdate privileges for cluster_auth_preference.
 	allowRules := []types.Rule{
@@ -58,7 +60,7 @@ func TestSetAuthPreference(t *testing.T) {
 		require.NoError(t, err)
 		storedAuthPref, err = server.GetAuthPreference()
 		require.NoError(t, err)
-		require.Empty(t, ResourceDiff(storedAuthPref, dynamicAuthPref))
+		require.Empty(t, resourceDiff(storedAuthPref, dynamicAuthPref))
 	})
 
 	newDynamicAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -70,7 +72,7 @@ func TestSetAuthPreference(t *testing.T) {
 		require.NoError(t, err)
 		storedAuthPref, err = server.GetAuthPreference()
 		require.NoError(t, err)
-		require.Empty(t, ResourceDiff(storedAuthPref, newDynamicAuthPref))
+		require.Empty(t, resourceDiff(storedAuthPref, newDynamicAuthPref))
 	})
 
 	staticAuthPref := newU2FAuthPreferenceFromConfigFile(t)
@@ -79,7 +81,7 @@ func TestSetAuthPreference(t *testing.T) {
 		require.NoError(t, err)
 		storedAuthPref, err = server.GetAuthPreference()
 		require.NoError(t, err)
-		require.Empty(t, ResourceDiff(storedAuthPref, staticAuthPref))
+		require.Empty(t, resourceDiff(storedAuthPref, staticAuthPref))
 	})
 
 	newAuthPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
@@ -101,7 +103,7 @@ func TestSetAuthPreference(t *testing.T) {
 			if success {
 				expectedStored = newAuthPref
 			}
-			require.Empty(t, ResourceDiff(storedAuthPref, expectedStored))
+			require.Empty(t, resourceDiff(storedAuthPref, expectedStored))
 		}
 	}
 
@@ -132,4 +134,10 @@ func withAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) 
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
+}
+
+func resourceDiff(res1, res2 types.Resource) string {
+	return cmp.Diff(res1, res2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.EquateEmpty())
 }

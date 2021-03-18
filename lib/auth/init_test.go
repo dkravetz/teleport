@@ -164,7 +164,7 @@ func TestAuthPreference(t *testing.T) {
 
 	cap, err := as.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(cap, conf.AuthPreference))
+	require.Empty(t, resourceDiff(cap, conf.AuthPreference))
 }
 
 func TestAuthPreferenceInitFromConfigFileToDefault(t *testing.T) {
@@ -181,7 +181,7 @@ func TestAuthPreferenceInitFromConfigFileToDefault(t *testing.T) {
 
 	storedAuthPref, err := authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 
 	// Reset the auth preference to default.
 	conf.AuthPreference = types.DefaultAuthPreference()
@@ -193,7 +193,7 @@ func TestAuthPreferenceInitFromConfigFileToDefault(t *testing.T) {
 	// defaults.
 	storedAuthPref, err = authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 }
 
 func TestAuthPreferenceInitFromDynamicToDefault(t *testing.T) {
@@ -211,7 +211,7 @@ func TestAuthPreferenceInitFromDynamicToDefault(t *testing.T) {
 
 	storedAuthPref, err := authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, origAuthPref))
+	require.Empty(t, resourceDiff(storedAuthPref, origAuthPref))
 
 	// Attempt to reset to default should be a no-op.
 	conf.AuthPreference = types.DefaultAuthPreference()
@@ -222,7 +222,7 @@ func TestAuthPreferenceInitFromDynamicToDefault(t *testing.T) {
 	// Verify the stored auth preference remains unchanged.
 	storedAuthPref, err = authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, origAuthPref))
+	require.Empty(t, resourceDiff(storedAuthPref, origAuthPref))
 }
 
 func TestAuthPreferenceInitFromDynamicToConfigFile(t *testing.T) {
@@ -240,7 +240,7 @@ func TestAuthPreferenceInitFromDynamicToConfigFile(t *testing.T) {
 
 	storedAuthPref, err := authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, origAuthPref))
+	require.Empty(t, resourceDiff(storedAuthPref, origAuthPref))
 
 	// Overwriting with a config-file preference should work.
 	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
@@ -251,7 +251,7 @@ func TestAuthPreferenceInitFromDynamicToConfigFile(t *testing.T) {
 	// Verify the stored auth preference is updated.
 	storedAuthPref, err = authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 }
 
 func TestAuthPreferenceInitWithFirstConfigFile(t *testing.T) {
@@ -264,7 +264,7 @@ func TestAuthPreferenceInitWithFirstConfigFile(t *testing.T) {
 
 	storedAuthPref, err := authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 
 	// Overwriting with a config-file preference should work.
 	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
@@ -276,7 +276,7 @@ func TestAuthPreferenceInitWithFirstConfigFile(t *testing.T) {
 	// Verify the stored auth preference is updated.
 	storedAuthPref, err = authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 }
 
 func TestAuthPreferenceInitWithSecondConfigFile(t *testing.T) {
@@ -293,7 +293,7 @@ func TestAuthPreferenceInitWithSecondConfigFile(t *testing.T) {
 
 	storedAuthPref, err := authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 
 	// Overwriting with a config-file preference should work.
 	conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
@@ -304,7 +304,7 @@ func TestAuthPreferenceInitWithSecondConfigFile(t *testing.T) {
 	// Verify the stored auth preference is updated.
 	storedAuthPref, err = authServer.GetAuthPreference()
 	require.NoError(t, err)
-	require.Empty(t, ResourceDiff(storedAuthPref, conf.AuthPreference))
+	require.Empty(t, resourceDiff(storedAuthPref, conf.AuthPreference))
 }
 
 func TestClusterID(t *testing.T) {
