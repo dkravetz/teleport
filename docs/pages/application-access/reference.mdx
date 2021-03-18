@@ -8,7 +8,7 @@ description: Configuration and CLI reference for Teleport Application Access
 ## Configuration
 
 The following snippet shows full YAML configuration of an Application Service
-appearing in `teleport.yaml` configuration file:
+appearing in the `teleport.yaml` configuration file:
 
 ```yaml
 app_service:
@@ -19,7 +19,7 @@ app_service:
   # extending your application.
   debug_app: true
   # This section contains definitions of all applications proxied by this
-  # service, can contain multiple items.
+  # service. It can contain multiple items.
   apps:
     # Name of the application. Used for identification purposes.
   - name: "grafana"

@@ -24,7 +24,7 @@ command:
 $ docker run -d -p 3000:3000 grafana/grafana
 ```
 
-And connect it to your Teleport cluster by adding the following section in
+Connect Grafana to your Teleport cluster by adding the following section in
 the Teleport App Service configuration file:
 
 ```yaml
@@ -64,9 +64,9 @@ curl \
 The login message shows an example `curl` command you can run to call the
 target application's API through Teleport App Access. Note the paths to the
 CA certificate and your user's certificate/key pair in the command - `curl`
-will use client certificate to authenticate with Teleport.
+will use a client certificate to authenticate with Teleport.
 
-As Grafana API requires authentication, let's update the `curl` command to
+As Grafana's API requires authentication, let's update the `curl` command to
 provide basic auth information using default Grafana username/password and
 call its `/api/users` endpoint:
 
@@ -79,8 +79,8 @@ $ curl --user admin:admin \
 [{"id":1,"name":"","login":"admin","email":"admin@localhost","avatarUrl":"/avatar/46d229b033af06a191ff2267bca9ae56","isAdmin":true,"isDisabled":false,"lastSeenAt":"2021-03-18T17:25:59Z","lastSeenAtAge":"\u003c 1m","authLabels":[]}]
 ```
 
-The app's X.509 certificate will expire on its own after some TTL governed by
-your user's role. You can also remove it explicly:
+The app's X.509 certificate will expire on its own after the TTL allowed by
+your user's role. You can also remove it explicitly:
 
 ```sh
 $ tsh app logout
@@ -89,8 +89,8 @@ Logged out of app "grafana"
 
 ## App Information
 
-Teleport provides a way to see the information about the application you're
-logged into via CLI such as app URI and paths to the secrets. This is useful
+Teleport provides a way to see information about the application you're
+logged into via CLI, such as app URI and paths to the secrets. This is useful
 when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 
 Let's print the app information in a table format:

@@ -34,7 +34,7 @@ $ teleport start --config=/path/to/teleport.yaml
 
 ### Generate Token
 
-Join token is required to authorize a Teleport Application Proxy service to
+A join token is required to authorize a Teleport Application Proxy service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
@@ -95,7 +95,7 @@ proxy_service:
 ### Create a User
 
 In order to be able to access the application, a Teleport user needs to have
-a role that allows it to see it.
+a role that allows them to see it.
 
 Teleport comes with a built-in `access` role that provides access to all
 applications:
@@ -119,7 +119,7 @@ $ teleport start \
 ```
 
 Note that the `--auth-server` flag must point to the Teleport cluster's proxy
-endpoint because application service always connects back to the cluster over
+endpoint because the application service always connects back to the cluster over
 a reverse tunnel.
 
 ### Application Name
@@ -145,18 +145,18 @@ teleport:
   # during initial registration with the cluster.
   auth_token: /tmp/token
   # Proxy address to connect to. Note that it has to be the proxy address
-  # because app service always connects to the cluster over reverse
+  # because the app service always connects to the cluster over a reverse
   # tunnel.
   auth_servers:
   - teleport.example.com:3080
 app_service:
     enabled: yes
-    # We've a small debug app that can be used to make sure application
+    # Teleport provides a small debug app that can be used to make sure application
     # access is working correctly. It'll output JWTs so it can be useful
-    # for when extending your application.
+    # when extending your application.
     debug_app: true
     # This section contains definitions of all applications proxied by this
-    # service, can contain multiple items.
+    # service. It can contain multiple items.
     apps:
       # Name of the application. Used for identification purposes.
     - name: "grafana"
@@ -190,8 +190,8 @@ $ teleport start --config=/etc/teleport-app.yaml
 
 ### Running Debug Application
 
-For testing and debugging purposes we provide a builtin debug app. It can
-be turned on use `debug_app: true`.
+For testing and debugging purposes we provide a built-in debug app. It can
+be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
@@ -204,7 +204,7 @@ The app will dump all the request headers in the response.
 ### Customize Public Address
 
 By default applications are available at `<app-name>.<proxy-host>:<proxy-port>`
-address. To override the public address, specify `public_addr` field:
+address. To override the public address, specify the `public_addr` field:
 
 ```yaml
 - name: "jira"
@@ -216,7 +216,7 @@ address. To override the public address, specify `public_addr` field:
 
 Teleport attempts to check if the certificates presented by the applications
 are signed by a trusted CA (Certificate Authority). When using self-signed
-certificates for internal applications use `insecure_skip_verify: true` to
+certificates for internal applications, use `insecure_skip_verify: true` to
 skip this verification step:
 
 ```yaml
@@ -228,7 +228,7 @@ skip this verification step:
 
 ### Deeplink to Subdirectory
 
-Some applications are available on a subdirectory. Wxamples include the
+Some applications are available on a subdirectory. Examples include the
 [Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
 The URI should be updated to include the subdirectory:
 
@@ -259,7 +259,7 @@ that provide internal redirect headers:
 
 Teleport provides a UI for quickly launching connected applications.
 
-They can be viewed by navigating to a cluster and selecting Applications tab.
+They can be viewed by navigating to a cluster's web UI and selecting the Applications tab.
 The URL structure looks like this:
 
 `https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
@@ -268,6 +268,6 @@ The URL structure looks like this:
 
 When you log into an application, you'll get a certificate and login session
 per your defined RBAC. If you want to force logout before this period you can
-force a log out by hitting the `/teleport-logout` endpoint:
+do so by hitting the `/teleport-logout` endpoint:
 
 [https://internal-app.teleport.example.com/teleport-logout](https://internal-app.teleport.example.com/teleport-logout)
