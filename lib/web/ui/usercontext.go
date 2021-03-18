@@ -39,7 +39,7 @@ type accessStrategy struct {
 	Prompt string `json:"prompt"`
 }
 
-// AccessCapabilities defines allowable access request rules defined in a users roles.
+// AccessCapabilities defines allowable access request rules defined in a user's roles.
 type AccessCapabilities struct {
 	// RequestableRoles is a list of roles that the user can select when requesting access.
 	RequestableRoles []string `json:"requestableRoles"`
