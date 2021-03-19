@@ -26,6 +26,5 @@ import (
 
 // NewStaticFileSystem is a no-op in this build mode.
 func NewStaticFileSystem() (http.FileSystem, error) {
-	const webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
 	return nil, trace.NotFound(webAssetsMissingError)
 }
