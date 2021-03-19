@@ -148,6 +148,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
 	c.Assert(err, IsNil)
+	// Register the auth server, since test auth server doesn't start its own
+	// heartbeat.
+	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+		Kind:    services.KindAuthServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      "auth",
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     s.server.Listener.Addr().String(),
+			Hostname: "localhost",
+			Version:  teleport.Version,
+		},
+	})
+	c.Assert(err, IsNil)
 
 	// start node
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -1767,14 +1783,11 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.PublicURL, Equals, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort))
 	c.Assert(cluster.Status, Equals, teleport.RemoteClusterStatusOnline)
 	c.Assert(cluster.LastConnected, NotNil)
+	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
 	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
-
-	// Expected empty, b/c test auth server doesn't set up
-	// heartbeat which where ServerSpecV2 version would've been set
-	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
 type testModules struct {
@@ -2148,22 +2161,22 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 }
 
 func waitForOutput(stream *terminalStream, substr string) error {
-	tickerCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 
 	for {
 		select {
-		case <-tickerCh:
-			out := make([]byte, 100)
-			_, err := stream.Read(out)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if strings.Contains(removeSpace(string(out)), substr) {
-				return nil
-			}
 		case <-timeoutCh:
 			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
+		default:
+		}
+
+		out := make([]byte, 100)
+		_, err := stream.Read(out)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if strings.Contains(removeSpace(string(out)), substr) {
+			return nil
 		}
 	}
 }
@@ -2171,27 +2184,27 @@ func waitForOutput(stream *terminalStream, substr string) error {
 func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) error {
 	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
 	defer timeoutCancel()
-	doneContext, doneCancel := context.WithCancel(context.Background())
-	defer doneCancel()
+
+	done := make(chan error, 1)
 
 	go func() {
 		for {
-			time.Sleep(250 * time.Millisecond)
-
 			var raw []byte
 			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			var envelope Envelope
 			err = proto.Unmarshal(raw, &envelope)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if envelope.GetType() == defaults.WebsocketRaw {
-				doneCancel()
+				done <- nil
 				return
 			}
 		}
@@ -2201,8 +2214,8 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 		select {
 		case <-timeoutContext.Done():
 			return trace.BadParameter("timeout waiting for raw event")
-		case <-doneContext.Done():
-			return nil
+		case err := <-done:
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -2210,23 +2223,23 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration) error {
 	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
 	defer timeoutCancel()
-	doneContext, doneCancel := context.WithCancel(context.Background())
-	defer doneCancel()
+
+	done := make(chan error, 1)
 
 	go func() {
 		for {
-			time.Sleep(250 * time.Millisecond)
-
 			var raw []byte
 			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			var envelope Envelope
 			err = proto.Unmarshal(raw, &envelope)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if envelope.GetType() != defaults.WebsocketAudit {
@@ -2236,11 +2249,12 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 			var e events.EventFields
 			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
 			if err != nil {
-				continue
+				done <- trace.Wrap(err)
+				return
 			}
 
 			if e.GetType() == events.ResizeEvent {
-				doneCancel()
+				done <- nil
 				return
 			}
 		}
@@ -2250,8 +2264,8 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 		select {
 		case <-timeoutContext.Done():
 			return trace.BadParameter("timeout waiting for resize event")
-		case <-doneContext.Done():
-			return nil
+		case err := <-done:
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -2356,6 +2370,22 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	server, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	// Register the auth server, since test auth server doesn't start its own
+	// heartbeat.
+	err = authServer.AuthServer.UpsertAuthServer(&services.ServerV2{
+		Kind:    services.KindAuthServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      "auth",
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     server.Listener.Addr().String(),
+			Hostname: "localhost",
+			Version:  teleport.Version,
+		},
+	})
 
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{

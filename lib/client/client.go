@@ -144,6 +144,16 @@ type ReissueParams struct {
 	AccessRequests    []string
 	RouteToDatabase   proto.RouteToDatabase
 	RouteToApp        proto.RouteToApp
+
+	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
+	// existing user credentials. The TeleportClient in lib/web/terminal.go
+	// doesn't have a real LocalKeystore and keeps all certs in memory.
+	// Normally, existing credentials are loaded from
+	// TeleportClient.localAgent.
+	//
+	// TODO(awly): refactor lib/web to use a Keystore implementation that
+	// mimics LocalKeystore and remove this.
+	ExistingCreds *Key
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -186,10 +196,14 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 }
 
 func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	key := params.ExistingCreds
+	if key == nil {
+		localAgent := proxy.teleportClient.LocalAgent()
+		var err error
+		key, err = localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	cert, err := key.SSHCert()
 	if err != nil {
@@ -254,12 +268,18 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, params ReissuePa
 	return key, nil
 }
 
+type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string) (*proto.MFAAuthenticateResponse, error)
+
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFAChallenge PromptMFAChallengeHandler) (*Key, error) {
+	key := params.ExistingCreds
+	if key == nil {
+		localAgent := proxy.teleportClient.LocalAgent()
+		var err error
+		key, err = localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	cert, err := key.SSHCert()
 	if err != nil {
@@ -377,7 +397,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	if mfaChal == nil {
 		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
 	}
-	mfaResp, err := PromptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal, "")
+	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1386,10 +1406,9 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 	key, err := proxy.IssueUserCertsWithMFA(ctx, ReissueParams{
 		NodeName:       nodeName(nodeAddr.Addr),
 		RouteToCluster: nodeAddr.Cluster,
-	})
+	}, PromptMFAChallenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return key.AsAuthMethod()
-
 }
