@@ -1356,6 +1356,16 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAM
 
 // UpsertSAMLConnector updates or creates OIDC connector
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+	if err := c.APIClient.UpsertSAMLConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1371,6 +1381,17 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 
 // GetSAMLConnector returns SAML connector information by id
 func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetSAMLConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -1384,6 +1405,17 @@ func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLCon
 
 // GetSAMLConnectors gets SAML connectors list
 func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetSAMLConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
@@ -1406,6 +1438,16 @@ func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, 
 
 // DeleteSAMLConnector deletes SAML connector by ID
 func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
+	if err := c.APIClient.DeleteSAMLConnector(ctx, connectorID); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}

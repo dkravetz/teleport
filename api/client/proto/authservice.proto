@@ -939,4 +939,14 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetSAMLConnector gets a SAML connector resource by name.
+    rpc GetSAMLConnector(types.GetResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
+    // GetSAMLConnectors gets all current SAML connector resources.
+    rpc GetSAMLConnectors(types.GetResourcesWithSecretsRequest)
+        returns (stream types.SAMLConnectorV2);
+    // UpsertSAMLConnector upserts a SAML connector in a backend.
+    rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+    // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
+    rpc DeleteSAMLConnector(types.DeleteResourceRequest) returns (google.protobuf.Empty);
 }

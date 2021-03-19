@@ -1856,6 +1856,79 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
+// GetSAMLConnector retrieves a SAML connector by name.
+func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.GetResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnector, err := auth.GetSAMLConnector(req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	samlConnectorV2, ok := samlConnector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type"))
+	}
+	return samlConnectorV2, nil
+}
+
+// GetSAMLConnectors retrieves all SAML connectors.
+func (g *GRPCServer) GetSAMLConnectors(req *types.GetResourcesWithSecretsRequest, stream proto.AuthService_GetSAMLConnectorsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	samlConnectors, err := auth.GetSAMLConnectors(req.WithSecrets)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, sc := range samlConnectors {
+		samlConnector, ok := sc.(*services.SAMLConnectorV2)
+		if !ok {
+			log.Warnf("expected type services.SAMLConnectorV2, got %T for SAML connector %q", sc, sc.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected SAML connector type"))
+		}
+		if err := stream.Send(samlConnector); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertSAMLConnector upserts a SAML connector.
+func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateSAMLConnector(samlConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.UpsertSAMLConnector(ctx, samlConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q SAML connector upserted", samlConnector.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (g *GRPCServer) DeleteSAMLConnector(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteSAMLConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q SAML connector deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
