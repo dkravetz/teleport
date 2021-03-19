@@ -844,3 +844,53 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 	}
 	return resp, nil
 }
+
+// GetOIDCConnector returns OIDC connector by name
+func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	req := &types.GetResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetOIDCConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetOIDCConnectors returns a list of OIDC connectors
+func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
+	req := &types.GetResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	stream, err := c.grpc.GetOIDCConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var oidcConnectors []types.OIDCConnector
+	for oidcConnector, err := stream.Recv(); err != io.EOF; oidcConnector, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		oidcConnectors = append(oidcConnectors, oidcConnector)
+	}
+	return oidcConnectors, nil
+}
+
+// UpsertOIDCConnector creates or updates OIDC connector
+func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
+	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteOIDCConnector deletes OIDC connector by name
+func (c *Client) DeleteOIDCConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteOIDCConnector(ctx, &types.DeleteResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}

@@ -939,4 +939,14 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetOIDCConnector gets an OIDC connector resource by name.
+    rpc GetOIDCConnector(types.GetResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    // GetOIDCConnectors gets all current OIDC connector resources.
+    rpc GetOIDCConnectors(types.GetResourcesWithSecretsRequest)
+        returns (stream types.OIDCConnectorV2);
+    // UpsertOIDCConnector upserts an OIDC connector in a backend.
+    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
+    rpc DeleteOIDCConnector(types.DeleteResourceRequest) returns (google.protobuf.Empty);
 }

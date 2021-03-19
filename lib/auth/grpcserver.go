@@ -1856,6 +1856,79 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
+// GetOIDCConnector retrieves an OIDC connector by name.
+func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.GetResourceWithSecretsRequest) (*types.OIDCConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnector, err := auth.GetOIDCConnector(req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type"))
+	}
+	return oidcConnectorV2, nil
+}
+
+// GetOIDCConnectors retrieves all OIDC connectors.
+func (g *GRPCServer) GetOIDCConnectors(req *types.GetResourcesWithSecretsRequest, stream proto.AuthService_GetOIDCConnectorsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	oidcConnectors, err := auth.GetOIDCConnectors(req.WithSecrets)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, oc := range oidcConnectors {
+		oidcConnector, ok := oc.(*services.OIDCConnectorV2)
+		if !ok {
+			log.Warnf("expected type services.OIDCConnectorV2, got %T for OIDC connector %q", oc, oc.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected OIDC connector type"))
+		}
+		if err := stream.Send(oidcConnector); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertOIDCConnector upserts an OIDC connector.
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateOIDCConnector(oidcConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q OIDC connector upserted", oidcConnector.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteOIDCConnector deletes an OIDC connector by name.
+func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteOIDCConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q OIDC connector deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
