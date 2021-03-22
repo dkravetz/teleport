@@ -844,3 +844,53 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 	}
 	return resp, nil
 }
+
+// GetGithubConnector returns Github connector by name.
+func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	req := &types.GetResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	resp, err := c.grpc.GetGithubConnector(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetGithubConnectors returns a list of Github connectors.
+func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+	req := &types.GetResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	stream, err := c.grpc.GetGithubConnectors(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var connectors []types.GithubConnector
+	for connector, err := stream.Recv(); err != io.EOF; connector, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		connectors = append(connectors, connector)
+	}
+	return connectors, nil
+}
+
+// UpsertGithubConnector creates or updates Github connector.
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connector)
+	}
+	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	return trail.FromGRPC(err)
+}
+
+// DeleteGithubConnector deletes Github connector by name.
+func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteGithubConnector(ctx, &types.DeleteResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}

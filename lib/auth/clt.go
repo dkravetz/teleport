@@ -1482,6 +1482,16 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 
 // UpsertGithubConnector creates or updates a Github connector
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
+	if err := c.APIClient.UpsertGithubConnector(ctx, connector); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1497,6 +1507,17 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.G
 
 // GetGithubConnectors returns all configured Github connectors
 func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetGithubConnectors(ctx, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1520,6 +1541,17 @@ func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnect
 
 // GetGithubConnector returns the specified Github connector
 func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetGithubConnector(ctx, id, withSecrets); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
@@ -1531,6 +1563,16 @@ func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.Githu
 
 // DeleteGithubConnector deletes the specified Github connector
 func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
+	if err := c.APIClient.DeleteGithubConnector(ctx, id); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	_, err := c.Delete(c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)

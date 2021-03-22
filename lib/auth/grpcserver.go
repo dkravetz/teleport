@@ -1856,6 +1856,76 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
+// GetGithubConnector retrieves a Github connector by name.
+func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.GetResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnector, err := auth.GetGithubConnector(req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	githubConnectorV3, ok := githubConnector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type"))
+	}
+	return githubConnectorV3, nil
+}
+
+// GetGithubConnectors retrieves all Github connectors.
+func (g *GRPCServer) GetGithubConnectors(req *types.GetResourcesWithSecretsRequest, stream proto.AuthService_GetGithubConnectorsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	githubConnectors, err := auth.GetGithubConnectors(req.WithSecrets)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, gc := range githubConnectors {
+		githubConnector, ok := gc.(*types.GithubConnectorV3)
+		if !ok {
+			log.Warnf("expected type services.GithubConnectorV3, got %T for Github connector %q", gc, gc.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected Github connector type"))
+		}
+		if err := stream.Send(githubConnector); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertGithubConnector upserts a Github connector.
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, GithubConnector *types.GithubConnectorV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.UpsertGithubConnector(ctx, GithubConnector); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q Github connector upserted", GithubConnector.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteGithubConnector deletes a Github connector by name.
+func (g *GRPCServer) DeleteGithubConnector(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteGithubConnector(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q Github connector deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles

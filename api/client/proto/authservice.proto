@@ -939,4 +939,14 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+
+    // GetGithubConnector gets a Github connector resource by name.
+    rpc GetGithubConnector(types.GetResourceWithSecretsRequest) returns (types.GithubConnectorV3);
+    // GetGithubConnectors gets all current Github connector resources.
+    rpc GetGithubConnectors(types.GetResourcesWithSecretsRequest)
+        returns (stream types.GithubConnectorV3);
+    // UpsertGithubConnector upserts a Github connector in a backend.
+    rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+    // DeleteGithubConnector deletes an existing Github connector in a backend by name.
+    rpc DeleteGithubConnector(types.DeleteResourceRequest) returns (google.protobuf.Empty);
 }
