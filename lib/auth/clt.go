@@ -2002,6 +2002,41 @@ func (c *Client) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetPAMConfig gets types.PAMConfig from the backend.
+func (c *Client) GetPAMConfig() (types.PAMConfig, error) {
+	out, err := c.Get(c.Endpoint("configuration", "pam"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := services.UnmarshalPAMConfig(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return config, nil
+}
+
+// SetPAMConfig sets types.PAMConfig from the backend.
+func (c *Client) SetPAMConfig(config types.PAMConfig) error {
+	data, err := services.MarshalPAMConfig(config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("configuration", "pam"), &setClusterPAMConfigReq{PAMConfig: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeletePAMConfig deletes types.PAMConfig from the backend.
+func (c *Client) DeletePAMConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()

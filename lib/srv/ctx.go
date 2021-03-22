@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -678,16 +680,66 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	var pamEnabled bool
 	var pamServiceName string
 	var pamUseAuth bool
+	var pamEnvironmentRaw map[string]string
+	var pamEnvironment map[string]string = make(map[string]string)
 
 	// If this code is running on a node, check if PAM is enabled or not.
+	// Override cluster configuration with optional local configuration.
 	if c.srv.Component() == teleport.ComponentNode {
-		conf, err := c.srv.GetPAM()
+		accessPoint := c.srv.GetAccessPoint()
+		clusterPAMConfig, _ := accessPoint.GetPAMConfig()
+		localPAMConfig, err := c.srv.GetPAM()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pamEnabled = conf.Enabled
-		pamServiceName = conf.ServiceName
-		pamUseAuth = conf.UsePAMAuth
+
+		if clusterPAMConfig == nil || localPAMConfig.Enabled {
+			pamEnabled = localPAMConfig.Enabled
+		} else {
+			pamEnabled = clusterPAMConfig.GetEnabled()
+		}
+
+		if clusterPAMConfig == nil || localPAMConfig.Enabled {
+			pamServiceName = localPAMConfig.ServiceName
+		} else {
+			pamServiceName = clusterPAMConfig.GetServiceName()
+		}
+
+		if clusterPAMConfig == nil || localPAMConfig.Enabled {
+			pamUseAuth = localPAMConfig.UsePAMAuth
+		} else {
+			pamUseAuth = clusterPAMConfig.GetUsePAMAuth()
+		}
+
+		if clusterPAMConfig != nil {
+			pamEnvironmentRaw = clusterPAMConfig.GetEnvironment()
+		}
+
+		user, err := accessPoint.GetUser(c.Identity.TeleportUser, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		traits := user.GetTraits()
+
+		// Interpolate any expressions in the cluster PAM environment configuration
+		// with values from received traits.
+		for key, value := range pamEnvironmentRaw {
+			expr, err := parse.NewExpression(value)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if expr.Namespace() != "external" {
+				return nil, trace.BadParameter("only variables in external namespace allowed in PAM configuration")
+			}
+
+			result, err := expr.Interpolate(traits)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			pamEnvironment[key] = strings.Join(result, " ")
+		}
 	}
 
 	// If the identity has roles, extract the role names.
@@ -730,6 +782,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAM:                   pamEnabled,
 		ServiceName:           pamServiceName,
 		UsePAMAuth:            pamUseAuth,
+		PAMEnvironment:        pamEnvironment,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 	}, nil

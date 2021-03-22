@@ -207,6 +207,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
 	srv.GET("/:version/authentication/preference", srv.withAuth(srv.getClusterAuthPreference))
 	srv.POST("/:version/authentication/preference", srv.withAuth(srv.setClusterAuthPreference))
+	srv.GET("/:version/configuration/pam", srv.withAuth(srv.getClusterPAMConfig))
+	srv.POST("/:version/configuration/pam", srv.withAuth(srv.setClusterPAMConfig))
 
 	// OIDC
 	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
@@ -2274,6 +2276,42 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 	}
 
 	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
+}
+
+// getClusterPAMConfig responds with a marshalled form of the closter PAM config.
+func (s *APIServer) getClusterPAMConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	config, err := auth.GetPAMConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.MarshalPAMConfig(config, services.WithVersion(version), services.PreserveResourceID()))
+}
+
+type setClusterPAMConfigReq struct {
+	PAMConfig json.RawMessage `json:"cluster_pam_config"`
+}
+
+// setClusterPAMConfig applies the provided PAM config to the cluster.
+func (s *APIServer) setClusterPAMConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *setClusterPAMConfigReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := services.UnmarshalPAMConfig(req.PAMConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetPAMConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("cluster pam config set: %+v", config)), nil
 }
 
 func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

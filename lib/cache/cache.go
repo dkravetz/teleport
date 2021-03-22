@@ -1264,3 +1264,13 @@ func (c *Cache) GetAuthPreference() (services.AuthPreference, error) {
 	defer rg.Release()
 	return rg.clusterConfig.GetAuthPreference()
 }
+
+// GetPAMConfig gets the cluster PAM config.
+func (c *Cache) GetPAMConfig() (types.PAMConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetPAMConfig()
+}

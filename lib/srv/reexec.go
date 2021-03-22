@@ -85,6 +85,9 @@ type ExecCommand struct {
 	// policy.
 	UsePAMAuth bool `json:"use_pam_auth"`
 
+	// Environment variables to set for PAM modules.
+	PAMEnvironment map[string]string `json:"pam_environment"`
+
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
 
@@ -184,6 +187,12 @@ func RunCommand() (io.Writer, int, error) {
 			stderr = ioutil.Discard
 		}
 
+		// Combine passed PAM environment variables with ones we fill in by default.
+		pamInputEnv := c.PAMEnvironment
+		pamInputEnv["TELEPORT_USERNAME"] = c.Username
+		pamInputEnv["TELEPORT_LOGIN"] = c.Login
+		pamInputEnv["TELEPORT_ROLES"] = strings.Join(c.Roles, " ")
+
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.ServiceName,
@@ -192,11 +201,7 @@ func RunCommand() (io.Writer, int, error) {
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env: map[string]string{
-				"TELEPORT_USERNAME": c.Username,
-				"TELEPORT_LOGIN":    c.Login,
-				"TELEPORT_ROLES":    strings.Join(c.Roles, " "),
-			},
+			Env:    pamInputEnv,
 			Stdin:  stdin,
 			Stdout: stdout,
 			Stderr: stderr,

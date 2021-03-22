@@ -193,6 +193,12 @@ const (
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
 
+	// KindPAMConfig represents a node PAM configuration.
+	KindPAMConfig = "pam_config"
+
+	// Metadata name for the pam_config resource.
+	MetaNamePAMConfig = "pam-config"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
