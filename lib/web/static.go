@@ -25,6 +25,6 @@ import (
 )
 
 // NewStaticFileSystem is a no-op in this build mode.
-func NewStaticFileSystem() (http.FileSystem, error) {
+func NewStaticFileSystem() (http.FileSystem, error) { //nolint:staticcheck
 	return nil, trace.NotFound(webAssetsMissingError)
 }
