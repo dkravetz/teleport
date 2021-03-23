@@ -2033,7 +2033,7 @@ func (a *ServerWithRoles) GetPAMConfig() (types.PAMConfig, error) {
 	return a.authServer.GetPAMConfig()
 }
 
-// SetPAMCONFIG sets the cluster PAM config.
+// SetPAMConfig sets the cluster PAM config.
 func (a *ServerWithRoles) SetPAMConfig(config types.PAMConfig) error {
 	if err := a.action(defaults.Namespace, types.KindPAMConfig, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
