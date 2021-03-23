@@ -75,18 +75,7 @@ type ExecCommand struct {
 	// type: "exec" or "shell".
 	RequestType string `json:"request_type"`
 
-	// PAM indicates if PAM support was requested by the node.
-	PAM bool `json:"pam"`
-
-	// ServiceName is the name of the PAM service requested if PAM is enabled.
-	ServiceName string `json:"service_name"`
-
-	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
-	// policy.
-	UsePAMAuth bool `json:"use_pam_auth"`
-
-	// Environment variables to set for PAM modules.
-	PAMEnvironment map[string]string `json:"pam_environment"`
+	PAMConfig PAMConfig `json:"pam_config"`
 
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
@@ -115,6 +104,21 @@ type UaccMetadata struct {
 
 	// WtmpPath is the path of the system wtmp log.
 	WtmpPath string `json:"wtmp_path,omitempty"`
+}
+
+// PAMConfig stores PAM specific configuration passed to the child.
+type PAMConfig struct {
+	// Enabled indicates if PAM support was requested by the node.
+	Enabled bool `json:"enabled"`
+
+	// ServiceName is the name of the PAM service requested if PAM is enabled.
+	ServiceName string `json:"service_name"`
+
+	// UseAuth specifies whether to trigger the "auth" PAM modules from the policy.
+	UseAuth bool `json:"use_auth"`
+
+	// Environment is a list of environment variables to set for PAM modules.
+	Environment map[string]string `json:"environment"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -170,7 +174,7 @@ func RunCommand() (io.Writer, int, error) {
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
 	var pamEnvironment []string
-	if c.PAM {
+	if c.PAMConfig.Enabled {
 		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
 		// discard std{out,err}. If this was not done, things like MOTD would be
 		// printed for "exec" requests.
@@ -188,7 +192,7 @@ func RunCommand() (io.Writer, int, error) {
 		}
 
 		// Combine passed PAM environment variables with ones we fill in by default.
-		pamInputEnv := c.PAMEnvironment
+		pamInputEnv := c.PAMConfig.Environment
 		if pamInputEnv == nil {
 			pamInputEnv = make(map[string]string)
 		}
@@ -199,8 +203,8 @@ func RunCommand() (io.Writer, int, error) {
 
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
-			ServiceName: c.ServiceName,
-			UsePAMAuth:  c.UsePAMAuth,
+			ServiceName: c.PAMConfig.ServiceName,
+			UsePAMAuth:  c.PAMConfig.UseAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
@@ -283,10 +287,10 @@ func RunForward() (io.Writer, int, error) {
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
-	if c.PAM {
+	if c.PAMConfig.Enabled {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
-			ServiceName: c.ServiceName,
+			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
 			Stdout:      ioutil.Discard,

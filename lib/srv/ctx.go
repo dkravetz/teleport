@@ -674,72 +674,74 @@ func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
 
+func (c *ServerContext) getPAMConfig() (*PAMConfig, error) {
+	accessPoint := c.srv.GetAccessPoint()
+	clusterPAMConfig, err := accessPoint.GetPAMConfig()
+
+	// If it doesn't exist, only use the local configuration and don't return a hard error.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	localPAMConfig, err := c.srv.GetPAM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var environ map[string]string
+
+	// Default to local configuration.
+	config := &PAMConfig{
+		Enabled:     localPAMConfig.Enabled,
+		ServiceName: localPAMConfig.ServiceName,
+		UseAuth:     localPAMConfig.UsePAMAuth,
+		Environment: make(map[string]string),
+	}
+
+	// Override with resource configuration if available.
+	if clusterPAMConfig != nil {
+		config.Enabled = clusterPAMConfig.GetEnabled()
+		config.ServiceName = clusterPAMConfig.GetServiceName()
+		config.UseAuth = clusterPAMConfig.GetUsePAMAuth()
+		environ = clusterPAMConfig.GetEnvironment()
+	}
+
+	user, err := accessPoint.GetUser(c.Identity.TeleportUser, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	traits := user.GetTraits()
+
+	// Interpolate any expressions in the cluster PAM environment configuration
+	// with values from received traits.
+	for key, value := range environ {
+		expr, err := parse.NewExpression(value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if expr.Namespace() != "external" {
+			return nil, trace.BadParameter("only variables in external namespace allowed in PAM configuration")
+		}
+
+		result, err := expr.Interpolate(traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		config.Environment[key] = strings.Join(result, " ")
+	}
+
+	return config, nil
+}
+
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	var pamEnabled bool
-	var pamServiceName string
-	var pamUseAuth bool
-	var pamEnvironmentRaw map[string]string
-	var pamEnvironment map[string]string = make(map[string]string)
-
-	// If this code is running on a node, check if PAM is enabled or not.
-	// Override cluster configuration with optional local configuration.
-	if c.srv.Component() == teleport.ComponentNode {
-		accessPoint := c.srv.GetAccessPoint()
-		clusterPAMConfig, _ := accessPoint.GetPAMConfig()
-		localPAMConfig, err := c.srv.GetPAM()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if clusterPAMConfig == nil || localPAMConfig.Enabled {
-			pamEnabled = localPAMConfig.Enabled
-		} else {
-			pamEnabled = clusterPAMConfig.GetEnabled()
-		}
-
-		if clusterPAMConfig == nil || localPAMConfig.Enabled {
-			pamServiceName = localPAMConfig.ServiceName
-		} else {
-			pamServiceName = clusterPAMConfig.GetServiceName()
-		}
-
-		if clusterPAMConfig == nil || localPAMConfig.Enabled {
-			pamUseAuth = localPAMConfig.UsePAMAuth
-		} else {
-			pamUseAuth = clusterPAMConfig.GetUsePAMAuth()
-		}
-
-		if clusterPAMConfig != nil {
-			pamEnvironmentRaw = clusterPAMConfig.GetEnvironment()
-		}
-
-		user, err := accessPoint.GetUser(c.Identity.TeleportUser, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		traits := user.GetTraits()
-
-		// Interpolate any expressions in the cluster PAM environment configuration
-		// with values from received traits.
-		for key, value := range pamEnvironmentRaw {
-			expr, err := parse.NewExpression(value)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if expr.Namespace() != "external" {
-				return nil, trace.BadParameter("only variables in external namespace allowed in PAM configuration")
-			}
-
-			result, err := expr.Interpolate(traits)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			pamEnvironment[key] = strings.Join(result, " ")
-		}
+	// Get the final PAM configuration.
+	pamConfig, err := c.getPAMConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// If the identity has roles, extract the role names.
@@ -779,10 +781,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
-		PAM:                   pamEnabled,
-		ServiceName:           pamServiceName,
-		UsePAMAuth:            pamUseAuth,
-		PAMEnvironment:        pamEnvironment,
+		PAMConfig:             *pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 	}, nil
