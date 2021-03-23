@@ -208,7 +208,7 @@ func (s *ClusterConfigurationService) GetPAMConfig() (types.PAMConfig, error) {
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
-// SetPAMConfig sets types.PAMConfig from the backend.
+// SetPAMConfig sets types.PAMConfig in the backend.
 func (s *ClusterConfigurationService) SetPAMConfig(config types.PAMConfig) error {
 	value, err := services.MarshalPAMConfig(config)
 	if err != nil {
