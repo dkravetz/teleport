@@ -189,6 +189,10 @@ func RunCommand() (io.Writer, int, error) {
 
 		// Combine passed PAM environment variables with ones we fill in by default.
 		pamInputEnv := c.PAMEnvironment
+		if pamInputEnv == nil {
+			pamInputEnv = make(map[string]string)
+		}
+
 		pamInputEnv["TELEPORT_USERNAME"] = c.Username
 		pamInputEnv["TELEPORT_LOGIN"] = c.Login
 		pamInputEnv["TELEPORT_ROLES"] = strings.Join(c.Roles, " ")
