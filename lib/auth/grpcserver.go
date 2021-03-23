@@ -1856,6 +1856,85 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
+// GetTrustedCluster retrieves a Trusted Cluster by name.
+func (g *GRPCServer) GetTrustedCluster(ctx context.Context, req *types.GetResourceRequest) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	tc, err := auth.GetTrustedCluster(req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+	}
+	return trustedClusterV2, nil
+}
+
+// GetTrustedClusters retrieves all Trusted Clusters.
+func (g *GRPCServer) GetTrustedClusters(_ *empty.Empty, stream proto.AuthService_GetTrustedClustersServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	trustedClusters, err := auth.GetTrustedClusters()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, tc := range trustedClusters {
+		trustedCluster, ok := tc.(*types.TrustedClusterV2)
+		if !ok {
+			log.Warnf("expected type services.TrustedClusterV2, got %T for Trusted Cluster %q", tc, tc.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+		}
+		if err := stream.Send(trustedCluster); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertTrustedCluster upserts a Trusted Cluster.
+func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	trustedCluster, err := auth.UpsertTrustedCluster(ctx, cluster)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected Trusted Cluster type"))
+	}
+
+	g.Debugf("%q Trusted Cluster upserted", trustedClusterV2.GetName())
+
+	return trustedClusterV2, nil
+}
+
+// DeleteTrustedCluster deletes a Trusted Cluster by name.
+func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteTrustedCluster(ctx, req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q Trusted Cluster deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles

@@ -844,3 +844,55 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 	}
 	return resp, nil
 }
+
+// GetTrustedCluster returns a Trusted Cluster by name.
+func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	req := &types.GetResourceRequest{Name: name}
+	resp, err := c.grpc.GetTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTrustedClusters returns a list of Trusted Clusters.
+func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	stream, err := c.grpc.GetTrustedClusters(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var trusedClusters []types.TrustedCluster
+	for trusedCluster, err := stream.Recv(); err != io.EOF; trusedCluster, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		trusedClusters = append(trusedClusters, trusedCluster)
+	}
+	return trusedClusters, nil
+}
+
+// UpsertTrustedCluster creates or updates Trusted Cluster.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+	}
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// DeleteTrustedCluster deletes Trusted Cluster by name.
+func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteTrustedCluster(ctx, &types.DeleteResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}

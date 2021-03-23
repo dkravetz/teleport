@@ -2050,6 +2050,17 @@ func (c *Client) DeleteAllUsers() error {
 }
 
 func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetTrustedCluster(ctx, name); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2064,6 +2075,17 @@ func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error)
 }
 
 func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetTrustedClusters(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2087,6 +2109,16 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+	if resp, err := c.APIClient.UpsertTrustedCluster(ctx, trustedCluster); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	trustedClusterBytes, err := services.MarshalTrustedCluster(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2127,6 +2159,16 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
+	if err := c.APIClient.DeleteTrustedCluster(ctx, name); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
 }
