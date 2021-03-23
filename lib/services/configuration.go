@@ -52,7 +52,7 @@ type ClusterConfiguration interface {
 
 	// GetPAMConfig gets services.PAMConfig from the backend.
 	GetPAMConfig() (types.PAMConfig, error)
-	// SetPAMConfig sets services.PAMConfig from the backend.
+	// SetPAMConfig sets services.PAMConfig in the backend.
 	SetPAMConfig(types.PAMConfig) error
 	// DeletePAMConfig deletes services.PAMConfig from the backend.
 	DeletePAMConfig(ctx context.Context) error
