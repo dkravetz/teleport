@@ -8,7 +8,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// PAMConfigSchema is the JSON schema that the marshalled form of PAMConfig is validated against.
+// PAMConfigSchema is the JSON schema that the serialized form of PAMConfig is validated against.
 const PAMConfigSchema = `{
 	"type": "object",
 	"additionalProperties": false,
