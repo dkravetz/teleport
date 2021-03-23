@@ -31,7 +31,7 @@ const PAMConfigSchema = `{
 
 // UnmarshalPAMConfig unmarshals JSON into a PAMConfig resource.
 func UnmarshalPAMConfig(bytes []byte, opts ...MarshalOption) (types.PAMConfig, error) {
-	var config types.PAMConfigV1
+	var config types.PAMConfigV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
