@@ -137,8 +137,6 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 }
 
 func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
-	re, err := m.validateGithubAuthCallback(q)
-
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -146,10 +144,12 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		Method: events.LoginMethodGithub,
 	}
 
+	re, err := m.validateGithubAuthCallback(q)
 	if re != nil && re.claims != nil {
 		attributes, err := events.EncodeMapStrings(re.claims)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode identity attributes.")
+			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
+			log.WithError(err).Debug("Failed to encode identity attributes.")
 		} else {
 			event.IdentityAttributes = attributes
 		}
@@ -158,8 +158,12 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
-		emitter.EmitAuditEvent(ctx, event)
+		event.Status.Error = trace.Unwrap(err).Error()
+		event.Status.UserMessage = err.Error()
+
+		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit Github login failed event.")
+		}
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
