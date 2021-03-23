@@ -844,3 +844,51 @@ func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequ
 	}
 	return resp, nil
 }
+
+// GetToken returns a provision token by name.
+func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	resp, err := c.grpc.GetToken(ctx, &types.GetResourceRequest{Name: name})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetTokens returns a list of active provision tokens for nodes and users.
+func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	stream, err := c.grpc.GetTokens(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var tokens []types.ProvisionToken
+	for token, err := stream.Recv(); err != io.EOF; token, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
+}
+
+// UpsertToken creates or updates a provision token.
+func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", token)
+	}
+	_, err := c.grpc.UpsertToken(ctx, tokenV2)
+	return trail.FromGRPC(err)
+}
+
+// DeleteToken deletes a provision token by name.
+func (c *Client) DeleteToken(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing name")
+	}
+	_, err := c.grpc.DeleteToken(ctx, &types.DeleteResourceRequest{Name: name})
+	return trail.FromGRPC(err)
+}

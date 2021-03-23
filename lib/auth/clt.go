@@ -562,6 +562,17 @@ func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 
 // UpsertToken adds provisioning tokens for the auth server
 func (c *Client) UpsertToken(tok services.ProvisionToken) error {
+	ctx := context.TODO()
+	if err := c.APIClient.UpsertToken(ctx, tok); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
 		Token: tok.GetName(),
 		Roles: tok.GetRoles(),
@@ -575,6 +586,17 @@ func (c *Client) UpsertToken(tok services.ProvisionToken) error {
 
 // GetTokens returns a list of active invitation tokens for nodes and users
 func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetTokens(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -588,6 +610,17 @@ func (c *Client) GetTokens(opts ...services.MarshalOption) ([]services.Provision
 
 // GetToken returns provisioning token
 func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
+	ctx := context.TODO()
+	if resp, err := c.APIClient.GetToken(ctx, token); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -598,6 +631,17 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
 // could be a reset password token or a machine token
 func (c *Client) DeleteToken(token string) error {
+	ctx := context.TODO()
+	if err := c.APIClient.DeleteToken(ctx, token); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		return nil
+	}
+
+	// fallback to http if grpc is not implemented
+	// DELETE IN 8.0
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
 }

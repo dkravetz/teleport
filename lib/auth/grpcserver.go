@@ -1856,6 +1856,76 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 	return resp, nil
 }
 
+// GetToken retrieves a token by name.
+func (g *GRPCServer) GetToken(ctx context.Context, req *types.GetResourceRequest) (*types.ProvisionTokenV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	token, err := auth.GetToken(req.Name)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	tokenV3, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.Errorf("encountered unexpected token type"))
+	}
+	return tokenV3, nil
+}
+
+// GetTokens retrieves all tokens.
+func (g *GRPCServer) GetTokens(_ *empty.Empty, stream proto.AuthService_GetTokensServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	tokens, err := auth.GetTokens()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	for _, r := range tokens {
+		token, ok := r.(*services.ProvisionTokenV2)
+		if !ok {
+			log.Warnf("expected type services.ProvisionTokenV2, got %T for token %q", r, r.GetName())
+			return trail.ToGRPC(trace.Errorf("encountered unexpected token type"))
+		}
+		if err := stream.Send(token); err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+	return nil
+}
+
+// UpsertToken upserts a token.
+func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err = auth.UpsertToken(token); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q token upserted", token.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteToken deletes a token by name.
+func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.DeleteResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.DeleteToken(req.Name); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	g.Debugf("%q token deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
