@@ -22,9 +22,7 @@ const PAMConfigSchema = `{
 			"type": "boolean"
 		},
 		"environment": {
-			"type": "object",
-			"additionalProperties": true,
-			"properties": {}
+			"type": "object"
 		},
 	}
 }`
